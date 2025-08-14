@@ -1,6 +1,10 @@
 # prompt.py
 
 initial_position = (89633.29, 43127.57, 0.8778)
+breaking_point_in_first_sector = (89616.0, 43156.0, 0.0)
+entry_point_in_second_sector = (89613.9, 43157.7, 0.0)
+apex_point_in_second_sector = (89617.0, 43166.0, 0.0)
+end_point_in_second_sector = (89620.0, 43164.0, 0.0)
 
 def calculate_distance(point1: tuple, point2: tuple) -> float:
     """Calculate the Euclidean distance between two points."""
@@ -8,8 +12,8 @@ def calculate_distance(point1: tuple, point2: tuple) -> float:
 
 def create_trajectory_prompt(last_trajectory_action: str, last_sector: int, current_velocity: float, current_position: tuple, last_commands: list[str]) -> str:
     track_knowledge = f"""Track sectors:
-    1: 32m Starting Straight (speed limit 5 m/s). At the end of the straight in sector 1, there is the white big sign board. Before you pass 28m, you can go straight. After you pass 28m, the blue and white stripe wall became closer, and please slow down with big braking for sector 2 while keeping the steering straight. distance from braking point {calculate_distance(current_position, (89616, 43156, 0))} m
-    2: R-Hairpin. distance from current position to sector 2 entry point: {calculate_distance(current_position, (89613.9, 43157.7, 0))}m. distance from current position to sector 2 middle point: {calculate_distance(current_position, (89617, 43166, 0))}m. (exapmple: ("time": 1.0,"velocity": 0.1,"x": 0.1,"y": -0.3,"z": 0.0) ("time": 2.0,"velocity": 0.1,"x": 0.12,"y": -0.4,"z": 0.0))
+    1: 32m Starting Straight (speed limit 5 m/s). At the end of the straight in sector 1, there is the white big sign board. Before you pass 28m, you can go straight. After you pass 28m, the blue and white stripe wall became closer, and please slow down with big braking for sector 2 while keeping the steering straight. DON'T turn right before you passed breaking point; distance from braking point {calculate_distance(current_position, breaking_point_in_first_sector)} m
+    2: R-Hairpin. distance from current position to sector 2 entry {calculate_distance(current_position, entry_point_in_second_sector)} m. distance from current position to sector 2 apex {calculate_distance(current_position, apex_point_in_second_sector)} m. distance from current position to sector 2 end {calculate_distance(current_position, end_point_in_second_sector)} m.
     3: 30m Short Straight
     4: L-Hairpin
     5: 30m Short Straight
@@ -45,15 +49,6 @@ def create_trajectory_prompt(last_trajectory_action: str, last_sector: int, curr
     Your task: Determine the current sector and generate a trajectory and command.
     What is my future trajectory in next 5 seconds under vehicle coordinate?
 
-    Output format:
-    {{
-      "command": "turn right|turn left|go straight",
-      "trajectory_points": [
-        {{"x": float, "y": float, "z": float, "time": float, "velocity": float}},
-        ... (10 points)
-      ]
-    }}
-
     Generate 10 trajectory points with:
     - x, y, z coordinates (vehicle coordinate system, x: forward, y: left, z: up)
     - time: time from now (0.0 to 5.0 seconds)
@@ -63,5 +58,15 @@ def create_trajectory_prompt(last_trajectory_action: str, last_sector: int, curr
     Don't forget that the sector 2 is a right hairpin. Before that, you should slow down.
     Don't forget that if you want to turn right, y shoud be negative.
     What is my future trajectory in next 5 seconds under vehicle coordinate?
+    Output format:
+    {{
+      "current_sector": int,
+      "command": "turn right|turn left|go straight",
+      "trajectory_points": [
+        {{"x": float, "y": float, "z": float, "time": float, "velocity": float}},
+        ... (10 points)
+      ],
+      "reasoning": "string explaining your decision"
+    }}
     """
     return prompt
