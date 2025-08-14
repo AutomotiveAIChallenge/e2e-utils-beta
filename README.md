@@ -23,7 +23,7 @@ cd autoware
 ### 2. Clone the repository
 
 ```bash
-git clone https://github.com/Shin-kyoto/e2e_utils_beta.git
+git clone https://github.com/AutomotiveAIChallenge/e2e-utils-beta
 ```
 
 ### 3. Import dependencies
@@ -38,8 +38,8 @@ colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -
 
 ## Setup AWSIM
 
-- Please use [this AWSIM branch](https://github.com/Shin-kyoto/aichallenge-2025/tree/exp/0724) to setup.
-  - TODO(Shin-kyoto): make branch in AutomotiveAIChallenge and update the above branch.
+- Please use [this branch](https://github.com/AutomotiveAIChallenge/aichallenge-2025-e2e-test) to setup.
+
 - Please follow [this setting up instruction](https://automotiveaichallenge.github.io/aichallenge-documentation-2025/setup/requirements.html).
 
 ## Run Sample ROS Node(VLM-Planner)
