@@ -1,42 +1,39 @@
-From 34e144cb813659c1395a33ab458bac0c8d5f9ecd Mon Sep 17 00:00:00 2001
+From 8ed896b2957ec0b761f8c972ad8570f4733894d5 Mon Sep 17 00:00:00 2001
 From: Shin-kyoto <aquashin0202@gmail.com>
-Date: Wed, 6 Aug 2025 10:48:43 +0900
+Date: Thu, 14 Aug 2025 13:11:31 +0900
 Subject: [PATCH] feat(autoware_tensorrt_vad): add publisher for base_link
  trajectory
 
 Signed-off-by: Shin-kyoto <aquashin0202@gmail.com>
 ---
- .../config/ml_package_vad_tiny.param.yaml     |   8 +-
+ .../config/ml_package_vad_tiny.param.yaml     |   6 +-
  .../config/vad_tiny.param.yaml                |   2 +-
- .../autoware/tensorrt_vad/vad_interface.hpp   |  16 +++
+ .../autoware/tensorrt_vad/vad_interface.hpp   |  18 ++-
  .../autoware/tensorrt_vad/vad_node.hpp        |   2 +
  .../launch/vad.launch.xml                     |   6 +-
- .../lib/vad_interface.cpp                     | 130 ++++++++++++++++++
+ .../lib/vad_interface.cpp                     | 121 ++++++++++++++++++
  .../autoware_tensorrt_vad/src/vad_node.cpp    |  10 ++
- 7 files changed, 168 insertions(+), 6 deletions(-)
+ 7 files changed, 159 insertions(+), 6 deletions(-)
 
 diff --git a/planning/autoware_tensorrt_vad/config/ml_package_vad_tiny.param.yaml b/planning/autoware_tensorrt_vad/config/ml_package_vad_tiny.param.yaml
-index 9c8a6882ed..440a702e52 100644
+index 8a23f76091..2b6defda23 100644
 --- a/planning/autoware_tensorrt_vad/config/ml_package_vad_tiny.param.yaml
 +++ b/planning/autoware_tensorrt_vad/config/ml_package_vad_tiny.param.yaml
-@@ -4,11 +4,11 @@
+@@ -3,9 +3,9 @@
+     node_params:
        num_cameras: 6
      interface_params:
-       # # awsim
--      # input_image_width: 1920
--      # input_image_height: 1080
-+      input_image_width: 1920
-+      input_image_height: 1080
-       # # autoware xx1
+-      # autoware
 -      input_image_width: 1466
 -      input_image_height: 1122
-+      # input_image_width: 1466
-+      # input_image_height: 1122
-       # nuScenes
-       # input_image_width: 1653
-       # input_image_height: 940
++      # awsim
++      input_image_width: 1920
++      input_image_height: 1080
+       target_image_width: 640
+       target_image_height: 384
+       detection_range: [-15.0, -30.0, -2.0, 15.0, 30.0, 2.0]
 diff --git a/planning/autoware_tensorrt_vad/config/vad_tiny.param.yaml b/planning/autoware_tensorrt_vad/config/vad_tiny.param.yaml
-index 7229b00ca5..4b097ee442 100644
+index 9b0317d7c6..76325bff90 100644
 --- a/planning/autoware_tensorrt_vad/config/vad_tiny.param.yaml
 +++ b/planning/autoware_tensorrt_vad/config/vad_tiny.param.yaml
 @@ -1,7 +1,7 @@
@@ -49,7 +46,7 @@ index 7229b00ca5..4b097ee442 100644
        map_colors: [0.3922, 0.5843, 0.9294,  # divider: cornflowerblue
                     1.0, 0.0, 0.0,           # ped_crossing: red  
 diff --git a/planning/autoware_tensorrt_vad/include/autoware/tensorrt_vad/vad_interface.hpp b/planning/autoware_tensorrt_vad/include/autoware/tensorrt_vad/vad_interface.hpp
-index 56cf3bbc08..0b300b98e0 100644
+index 5255c3d60f..b525f1da2f 100644
 --- a/planning/autoware_tensorrt_vad/include/autoware/tensorrt_vad/vad_interface.hpp
 +++ b/planning/autoware_tensorrt_vad/include/autoware/tensorrt_vad/vad_interface.hpp
 @@ -110,7 +110,9 @@ private:
@@ -62,19 +59,20 @@ index 56cf3bbc08..0b300b98e0 100644
    visualization_msgs::msg::MarkerArray map_points;  // Transformed map points in Autoware coordinate system
    autoware_perception_msgs::msg::PredictedObjects objects;
  };
-@@ -144,6 +146,11 @@ public:
+@@ -144,13 +146,23 @@ public:
      const rclcpp::Time & stamp,
      double trajectory_timestep,
      const Eigen::Matrix4f & base2map_transform) const;
+-  
 +
 +  autoware_internal_planning_msgs::msg::CandidateTrajectories process_candidate_trajectories_base(
 +    const std::map<int32_t, std::vector<float>> & predicted_trajectories,
 +    const rclcpp::Time & stamp,
 +    double trajectory_timestep) const;
-   
++
    autoware_planning_msgs::msg::Trajectory process_trajectory(
      const std::vector<float> & predicted_trajectory,
-@@ -151,6 +158,11 @@ public:
+     const rclcpp::Time & stamp,
      double trajectory_timestep,
      const Eigen::Matrix4f & base2map_transform) const;
  
@@ -98,7 +96,7 @@ index 56cf3bbc08..0b300b98e0 100644
  
  }  // namespace autoware::tensorrt_vad
 diff --git a/planning/autoware_tensorrt_vad/include/autoware/tensorrt_vad/vad_node.hpp b/planning/autoware_tensorrt_vad/include/autoware/tensorrt_vad/vad_node.hpp
-index ab7b85f6c9..8eafb09168 100644
+index b81eb39999..a5b79cea3a 100644
 --- a/planning/autoware_tensorrt_vad/include/autoware/tensorrt_vad/vad_node.hpp
 +++ b/planning/autoware_tensorrt_vad/include/autoware/tensorrt_vad/vad_node.hpp
 @@ -115,7 +115,9 @@ private:
@@ -108,11 +106,11 @@ index ab7b85f6c9..8eafb09168 100644
 +  rclcpp::Publisher<autoware_planning_msgs::msg::Trajectory>::SharedPtr trajectory_base_publisher_;
    rclcpp::Publisher<autoware_internal_planning_msgs::msg::CandidateTrajectories>::SharedPtr candidate_trajectories_publisher_;
 +  rclcpp::Publisher<autoware_internal_planning_msgs::msg::CandidateTrajectories>::SharedPtr candidate_trajectories_base_publisher_;
-   rclcpp::Publisher<autoware_perception_msgs::msg::PredictedObjects>::SharedPtr predicted_objects_publisher_;
    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr map_points_publisher_;
  
+   // Current frame data accumulation
 diff --git a/planning/autoware_tensorrt_vad/launch/vad.launch.xml b/planning/autoware_tensorrt_vad/launch/vad.launch.xml
-index 7d23600337..a043595cc0 100644
+index 7d23600337..ec6b957b31 100644
 --- a/planning/autoware_tensorrt_vad/launch/vad.launch.xml
 +++ b/planning/autoware_tensorrt_vad/launch/vad.launch.xml
 @@ -14,7 +14,7 @@
@@ -124,47 +122,46 @@ index 7d23600337..a043595cc0 100644
    <arg name="image1" default="/sensing/camera/camera1/image_rect_color"/>
    <arg name="image2" default="/sensing/camera/camera2/image_rect_color"/>
    <arg name="image3" default="/sensing/camera/camera3/image_rect_color"/>
-@@ -27,6 +27,8 @@
+@@ -26,7 +26,9 @@
+ 
    <arg name="output/objects" default="perception/object_recognition/vad/objects"/>
    <arg name="output/trajectory" default="planning/vad/trajectory"/>
-   <arg name="output/trajectories" default="planning/vad/trajectories"/>
 +  <arg name="output/trajectory_base" default="planning/vad/trajectory_base"/>
+   <arg name="output/trajectories" default="planning/vad/trajectories"/>
 +  <arg name="output/trajectories_base" default="planning/vad/trajectories_base"/>
    <arg name="output/map" default="debug/vad/map"/>
  
    <node pkg="autoware_tensorrt_vad" exec="vad_node" name="vad" output="screen" args="--ros-args --log-level $(var log_level)">
-@@ -36,6 +38,8 @@
+@@ -35,7 +37,9 @@
+ 
      <remap from="~/output/objects" to="$(var output/objects)"/>
      <remap from="~/output/trajectory" to="$(var output/trajectory)"/>
-     <remap from="~/output/trajectories" to="$(var output/trajectories)"/>
 +    <remap from="~/output/trajectory_base" to="$(var output/trajectory_base)"/>
+     <remap from="~/output/trajectories" to="$(var output/trajectories)"/>
 +    <remap from="~/output/trajectories_base" to="$(var output/trajectories_base)"/>
      <remap from="~/output/map" to="$(var output/map)"/>
  
      <remap from="~/input/camera_info0" to="$(var camera_info0)"/>
 diff --git a/planning/autoware_tensorrt_vad/lib/vad_interface.cpp b/planning/autoware_tensorrt_vad/lib/vad_interface.cpp
-index 66555b9a8d..0772b28e9b 100644
+index b4ce647d86..d5ce965706 100644
 --- a/planning/autoware_tensorrt_vad/lib/vad_interface.cpp
 +++ b/planning/autoware_tensorrt_vad/lib/vad_interface.cpp
-@@ -80,11 +80,17 @@ VadOutputTopicData VadInterface::convert_output(
+@@ -80,10 +80,14 @@ VadOutputTopicData VadInterface::convert_output(
    // Convert candidate trajectories
    output_topic_data.candidate_trajectories = process_candidate_trajectories(
      vad_output_data.predicted_trajectories_, stamp, trajectory_timestep, base2map_transform);
-+
 +  output_topic_data.candidate_trajectories_base = process_candidate_trajectories_base(
 +    vad_output_data.predicted_trajectories_, stamp, trajectory_timestep);
    
    // Convert trajectory
    output_topic_data.trajectory = process_trajectory(
      vad_output_data.predicted_trajectory_, stamp, trajectory_timestep, base2map_transform);
- 
 +  output_topic_data.trajectory_base = process_trajectory_base(
 +    vad_output_data.predicted_trajectory_, stamp, trajectory_timestep);
-+
+ 
    // Convert map_points from VAD coordinate system to Autoware coordinate system
    output_topic_data.map_points = process_map_points(vad_output_data.map_polylines_, stamp, base2map_transform);
- 
-@@ -518,6 +524,130 @@ std::vector<autoware_planning_msgs::msg::TrajectoryPoint> VadInterface::create_t
+@@ -515,6 +519,79 @@ std::vector<autoware_planning_msgs::msg::TrajectoryPoint> VadInterface::create_t
    return points;
  }
  
@@ -174,7 +171,7 @@ index 66555b9a8d..0772b28e9b 100644
 +{
 +  std::vector<autoware_planning_msgs::msg::TrajectoryPoint> points;
 +
-+  // 0秒目の点 (0,0) を追加 - base_link座標系
++  // Add 0-second point (0,0) - base_link coordinate system
 +  autoware_planning_msgs::msg::TrajectoryPoint initial_point;
 +  initial_point.pose.position.x = 0.0;
 +  initial_point.pose.position.y = 0.0;
@@ -198,15 +195,14 @@ index 66555b9a8d..0772b28e9b 100644
 +    float vad_x = predicted_trajectory[i];
 +    float vad_y = predicted_trajectory[i + 1];
 +
-+    // VAD座標系からAutoware base_link座標系に変換
++    // Convert from VAD coordinate system to Autoware base_link coordinate system
 +    auto [aw_x, aw_y, aw_z] = vad2aw_xyz(vad_x, vad_y, 0.0f);
-+    // aw_y = 0.0f;
-+    // printf("aw_x, aw_y: %f, %f\n", aw_x, aw_y);
++
 +    point.pose.position.x = aw_x;
 +    point.pose.position.y = aw_y;
 +    point.pose.position.z = aw_z;
 +
-+    // 方向を計算
++    // Calculate direction
 +    if (i + 2 < predicted_trajectory.size()) {
 +      float vad_dx = predicted_trajectory[i + 2] - predicted_trajectory[i];
 +      float vad_dy = predicted_trajectory[i + 3] - predicted_trajectory[i + 1];
@@ -218,21 +214,20 @@ index 66555b9a8d..0772b28e9b 100644
 +      point.pose.orientation = prev_orientation;
 +    }
 +
-+    // 速度を計算（前の点との距離を時間間隔で割る）
++    // Calculate velocity (divide distance from previous point by time interval)
 +    auto distance = std::hypot(point.pose.position.x - prev_x, point.pose.position.y - prev_y);
 +    point.longitudinal_velocity_mps = static_cast<float>(distance / trajectory_timestep);
-+
 +    point.lateral_velocity_mps = 0.0;
 +    point.acceleration_mps2 = 0.0;
 +    point.heading_rate_rps = 0.0;
 +
-+    // time_from_startを設定（1秒, 2秒, 3秒, 4秒, 5秒, 6秒）
++    // Set time_from_start (1 second, 2 seconds, 3 seconds, 4 seconds, 5 seconds, 6 seconds)
 +    size_t point_index = i / 2;
 +    double time_sec = (point_index + 1) * trajectory_timestep;
 +    point.time_from_start.sec = static_cast<int32_t>(time_sec);
 +    point.time_from_start.nanosec = static_cast<uint32_t>((time_sec - point.time_from_start.sec) * 1e9);
 +
-+    // 次の計算のために現在の位置を保存
++    // Save current position for next calculation
 +    prev_x = point.pose.position.x;
 +    prev_y = point.pose.position.y;
 +    prev_orientation = point.pose.orientation;
@@ -243,30 +238,34 @@ index 66555b9a8d..0772b28e9b 100644
 +  return points;
 +}
 +
+ autoware_internal_planning_msgs::msg::CandidateTrajectories VadInterface::process_candidate_trajectories(
+   const std::map<int32_t, std::vector<float>> & predicted_trajectories,
+   const rclcpp::Time & stamp,
+@@ -565,6 +642,50 @@ autoware_planning_msgs::msg::Trajectory VadInterface::process_trajectory(
+   return trajectory_msg;
+ }
+ 
 +autoware_internal_planning_msgs::msg::CandidateTrajectories VadInterface::process_candidate_trajectories_base(
 +  const std::map<int32_t, std::vector<float>> & predicted_trajectories,
 +  const rclcpp::Time & stamp,
 +  double trajectory_timestep) const
 +{
-+  // CandidateTrajectories メッセージを作成
 +  autoware_internal_planning_msgs::msg::CandidateTrajectories candidate_trajectories_msg;
 +
-+  // 各コマンドの軌道をCandidateTrajectoryとして追加
 +  for (const auto& [command_idx, trajectory] : predicted_trajectories) {
 +    autoware_internal_planning_msgs::msg::CandidateTrajectory candidate_trajectory;
 +
-+    // ヘッダーを設定 - base_link座標系
 +    candidate_trajectory.header.stamp = stamp;
 +    candidate_trajectory.header.frame_id = "base_link";
 +
-+    // generator_idを設定（ユニークなUUID）
++    // Set generator_id (unique UUID)
 +    candidate_trajectory.generator_id = autoware_utils_uuid::generate_uuid();
 +
 +    candidate_trajectory.points = create_trajectory_points_base(trajectory, trajectory_timestep);
 +
 +    candidate_trajectories_msg.candidate_trajectories.push_back(candidate_trajectory);
 +
-+    // 各コマンドのGeneratorInfoを追加
++    // Add GeneratorInfo for each command
 +    autoware_internal_planning_msgs::msg::GeneratorInfo generator_info;
 +    generator_info.generator_id = autoware_utils_uuid::generate_uuid();
 +    generator_info.generator_name.data = "autoware_tensorrt_vad_cmd_base_" + std::to_string(command_idx);
@@ -283,7 +282,6 @@ index 66555b9a8d..0772b28e9b 100644
 +{
 +  autoware_planning_msgs::msg::Trajectory trajectory_msg;
 +
-+  // ヘッダーを設定 - base_link座標系
 +  trajectory_msg.header.stamp = stamp;
 +  trajectory_msg.header.frame_id = "base_link";
 +
@@ -291,15 +289,14 @@ index 66555b9a8d..0772b28e9b 100644
 +
 +  return trajectory_msg;
 +}
-+
- autoware_internal_planning_msgs::msg::CandidateTrajectories VadInterface::process_candidate_trajectories(
-   const std::map<int32_t, std::vector<float>> & predicted_trajectories,
-   const rclcpp::Time & stamp,
+ 
+ /**
+  * @brief Process map points from VAD to Autoware coordinate system.
 diff --git a/planning/autoware_tensorrt_vad/src/vad_node.cpp b/planning/autoware_tensorrt_vad/src/vad_node.cpp
-index b104746438..08c6314283 100644
+index adff6a7d28..85f57f3c51 100644
 --- a/planning/autoware_tensorrt_vad/src/vad_node.cpp
 +++ b/planning/autoware_tensorrt_vad/src/vad_node.cpp
-@@ -99,6 +99,14 @@ VadNode::VadNode(const rclcpp::NodeOptions & options)
+@@ -97,6 +97,14 @@ VadNode::VadNode(const rclcpp::NodeOptions & options)
        this->create_publisher<autoware_internal_planning_msgs::msg::CandidateTrajectories>(
            "~/output/trajectories", rclcpp::QoS(1));
  
@@ -311,10 +308,10 @@ index b104746438..08c6314283 100644
 +      this->create_publisher<autoware_internal_planning_msgs::msg::CandidateTrajectories>(
 +          "~/output/trajectories_base", rclcpp::QoS(1));
 +
-   predicted_objects_publisher_ =
-       this->create_publisher<autoware_perception_msgs::msg::PredictedObjects>(
-           "~/output/objects",
-@@ -413,9 +421,11 @@ void VadNode::publish(const VadOutputTopicData & vad_output_topic_data)
+   map_points_publisher_ =
+       this->create_publisher<visualization_msgs::msg::MarkerArray>(
+           "~/output/map",
+@@ -405,9 +413,11 @@ void VadNode::publish(const VadOutputTopicData & vad_output_topic_data)
  {
    // Publish selected trajectory
    trajectory_publisher_->publish(vad_output_topic_data.trajectory);
@@ -324,8 +321,8 @@ index b104746438..08c6314283 100644
    candidate_trajectories_publisher_->publish(vad_output_topic_data.candidate_trajectories);
 +  candidate_trajectories_base_publisher_->publish(vad_output_topic_data.candidate_trajectories_base);
  
-   // // Publish predicted objects
-   // predicted_objects_publisher_->publish(vad_output_topic_data.objects);
+   // Publish map points
+   map_points_publisher_->publish(vad_output_topic_data.map_points);
 -- 
 2.34.1
 

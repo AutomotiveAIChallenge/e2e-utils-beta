@@ -22,8 +22,7 @@ repositories:
   vad:
     type: git
     url: https://github.com/tier4/autoware_universe.git
-    version: da371b387486b3809561a452e5e604715f635185
-  # TODO: change to awf/universe
+    version: e1030dcae97ddd2c77973c21b6925600301bd366
   universe:
     type: git
     url: https://github.com/autowarefoundation/autoware_universe.git
