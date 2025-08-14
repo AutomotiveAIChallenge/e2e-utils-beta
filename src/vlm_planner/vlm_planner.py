@@ -32,7 +32,7 @@ class VLMPlanner:
     def __init__(self, logger):
         self.logger = logger
         self.model = None
-        self.last_commands = []  # History of commands inferred by VLM
+        self.last_commands = ["go straight"]  # History of commands inferred by VLM
         self._setup_gemini()
 
     def _setup_gemini(self):
