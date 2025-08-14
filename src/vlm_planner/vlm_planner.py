@@ -33,6 +33,7 @@ class VLMPlanner:
         self.logger = logger
         self.model = None
         self.last_commands = ["go straight"]  # History of commands inferred by VLM
+        self.current_sector = 1  # Current sector managed internally
         self._setup_gemini()
 
     def _setup_gemini(self):
@@ -59,17 +60,17 @@ class VLMPlanner:
         pil_image = pil_image.resize((w // 4, (crop_box[3] - crop_box[1]) // 4))
         return pil_image
 
-    def generate_trajectory(self, image: Image, last_trajectory_action: str, last_sector: int, current_velocity: float, current_position: tuple) -> tuple[list, int]:
+    def generate_trajectory(self, image: Image, last_trajectory_action: str, current_velocity: float, current_position: tuple) -> list:
         """
         Generate a trajectory using VLM based on the given image.
         """
         if self.model is None:
             self.logger.warn("VLM model is not ready.")
-            return [], last_sector
+            return []
 
         processed_image = self._preprocess_image(image)
         
-        prompt = create_trajectory_prompt(last_trajectory_action, last_sector, current_velocity, current_position, self.last_commands)
+        prompt = create_trajectory_prompt(last_trajectory_action, self.current_sector, current_velocity, current_position, self.last_commands)
         
         try:
             start = time.perf_counter()
@@ -86,17 +87,17 @@ class VLMPlanner:
             self.logger.info(f"Response: {response.text.strip()}")
             response_dict = json.loads(response.text.strip())
             trajectory_points = response_dict.get("trajectory_points", [])
-            current_sector = response_dict.get("current_sector", last_sector)
+            self.current_sector = response_dict.get("current_sector", self.current_sector)
             reasoning = response_dict.get("reasoning", "")
             command = response_dict.get("command", "go straight")
             self.last_commands.append(command)
 
-            self.logger.info(f"Generated {len(trajectory_points)} points. sector: {current_sector}")
+            self.logger.info(f"Generated {len(trajectory_points)} points. sector: {self.current_sector}")
             self.logger.info(f"Reasoning: {reasoning}")
             self.logger.info(f"Command: {command}")
 
-            return trajectory_points, current_sector
+            return trajectory_points
                 
         except Exception as e:
             self.logger.error(f"Error during VLM trajectory generation: {e}")
-            return [], last_sector
+            return []

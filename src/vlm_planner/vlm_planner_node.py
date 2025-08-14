@@ -79,7 +79,6 @@ class VlmPlannerNode(Node):
                 "time": float(i)*0.5,
                 "velocity": 5.0
             })
-        self.last_known_sector = 1
         self.last_inference_time_sec = time.monotonic() - 6.0
         self.inference_interval_sec = 5.0  # Inference interval (real-time 5 seconds)
         self.last_trajectory_msg = None
@@ -108,17 +107,15 @@ class VlmPlannerNode(Node):
                                     self.current_odometry.pose.pose.position.z)
 
             # Generate trajectory with VLM
-            trajectory_points, current_sector = self.vlm_planner.generate_trajectory(
+            trajectory_points = self.vlm_planner.generate_trajectory(
                 self.latest_image,
                 self.last_trajectory_action,
-                self.last_known_sector,
                 current_velocity,
                 current_position
             )
 
             if len(trajectory_points) > 0:
                 # On success, update result and timestamp
-                self.last_known_sector = current_sector
                 self.last_inference_time_sec = now_sec
                 trajectory_msg = self.create_trajectory_message(trajectory_points)
                 self.last_trajectory_action = trajectory_points
