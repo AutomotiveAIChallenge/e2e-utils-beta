@@ -78,7 +78,8 @@ class VLMPlanner:
                 [prompt, processed_image],
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
-                    response_schema=TrajectoryResponse
+                    response_schema=TrajectoryResponse,
+                    temperature=0.0,
                 ),
             )
             end = time.perf_counter()
